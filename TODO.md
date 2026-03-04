@@ -1,7 +1,8 @@
 # IMUPoser TODO
 
 0. Review original paper — verify the code faithfully implements the paper (data pipeline, model arch, training procedure, evaluation metrics)
-1. Test script for Global Model — evaluate on dip_test.pt, report per-combo metrics
+1. ~~Test script for Global Model — evaluate on dip_test.pt, report per-combo metrics~~ ✓
+   1a. Verify per-combo metrics are reported clearly (check trainer.test output format)
 2. Fine-tune script — load pretrained checkpoint, train on dip_train.pt
 3. Test script for fine-tuned model — evaluate on dip_test.pt
 4. Config update — add `pretrained_checkpoint` field (default None)
