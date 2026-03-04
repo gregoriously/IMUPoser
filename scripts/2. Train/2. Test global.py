@@ -44,3 +44,4 @@ trainer = pl.Trainer()
 trainer.test(
     model, datamodule=datamodule
 )  # this uses the data loaders defined in dataset/utils.py
+# not that this will not work because there is currently no test step in the model definition.
