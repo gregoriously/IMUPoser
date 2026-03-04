@@ -7,4 +7,4 @@
 3. Test script for fine-tuned model — evaluate on dip_test.pt
 4. Config update — add `pretrained_checkpoint` field (default None)
 5. get_model update — handle checkpoint loading internally instead of requiring `pretrained` arg
-6. Generic fine-tune dataset class — configurable filenames instead of hardcoded DIP
+6. Review datasets/ and refactor GlobalModelDataset/FineTuneDIP into a single extensible base class — configurable file paths, sensor count, and combo masking to support fine-tuning on self-gathered data
