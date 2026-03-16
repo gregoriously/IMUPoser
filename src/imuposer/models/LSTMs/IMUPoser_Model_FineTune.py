@@ -5,9 +5,10 @@ IMUPoser Model
 import torch.nn as nn
 import torch
 import pytorch_lightning as pl
+from imuposer.math.accuracy import calc_mpjpe, calc_mpjre
+from imuposer.math.angular import r6d_to_rotation_matrix
 from imuposer.models.loss_functions import *
 from imuposer.smpl.parametricModel import ParametricModel
-from imuposer.math.angular import r6d_to_rotation_matrix
 
 class IMUPoserModelFineTune(pl.LightningModule):
     r"""
@@ -56,6 +57,27 @@ class IMUPoserModelFineTune(pl.LightningModule):
 
         return {"loss": loss}
 
+    def test_step(self, batch, batch_idx):
+        imu_inputs, target_pose, input_lengths, _ = batch
+
+        _pred = self(imu_inputs, input_lengths)
+
+        pred_pose = _pred[:, :, :self.n_pose_output]
+        _target = target_pose
+        target_pose = _target[:, :, :self.n_pose_output]
+        loss = self.loss(pred_pose, target_pose)
+        if self.config.use_joint_loss:
+            pred_joint = self.bodymodel.forward_kinematics(pose=r6d_to_rotation_matrix(pred_pose).view(-1, 216))[1]
+            target_joint = self.bodymodel.forward_kinematics(pose=r6d_to_rotation_matrix(target_pose).view(-1, 216))[1]
+            joint_pos_loss = self.loss(pred_joint, target_joint)
+            loss += joint_pos_loss
+        mpjpe = calc_mpjpe(target_pose, pred_pose, self.bodymodel)
+        mpjre = calc_mpjre(target_pose, pred_pose)
+
+        self.log("test_step_loss", loss.item(), batch_size=self.batch_size)
+
+        return {"loss": loss, "mpjpe": mpjpe, "mpjre": mpjre}
+
     def validation_step(self, batch, batch_idx):
         imu_inputs, target_pose, input_lengths, _ = batch
 
@@ -99,6 +121,16 @@ class IMUPoserModelFineTune(pl.LightningModule):
         self.epoch_end_callback(outputs, loop_type="val")
 
     def test_epoch_end(self, outputs):
+        mpjpes = []
+        mpjres = []
+        for out in outputs:
+            mpjpes.append(out["mpjpe"])
+            mpjres.append(out["mpjre"])
+
+        mpjpe = torch.mean(torch.Tensor(mpjpes))
+        mpjre = torch.mean(torch.Tensor(mpjres))
+        self.log("test_mpjpe", mpjpe, prog_bar=True, batch_size=self.batch_size)
+        self.log("test_mpjre", mpjre, prog_bar=True, batch_size=self.batch_size)
         self.epoch_end_callback(outputs, loop_type="test")
 
     def epoch_end_callback(self, outputs, loop_type="train"):

@@ -2,20 +2,25 @@ r"""
 IMUPoser Model
 """
 
-import torch.nn as nn
-import torch
 import pytorch_lightning as pl
-from .RNN import RNN
+import torch
+import torch.nn as nn
+
+from imuposer.config import Config
+from imuposer.math.accuracy import calc_mpjpe, calc_mpjre
+from imuposer.math.angular import r6d_to_rotation_matrix
 from imuposer.models.loss_functions import *
 from imuposer.smpl.parametricModel import ParametricModel
-from imuposer.math.angular import r6d_to_rotation_matrix
-from imuposer.config import Config
+
+from .RNN import RNN
+
 
 class IMUPoserModel(pl.LightningModule):
     r"""
     Inputs - N IMUs, Outputs - SMPL Pose params (in Rot Matrix)
     """
-    def __init__(self, config:Config):
+
+    def __init__(self, config: Config):
         super().__init__()
         n_input = 12 * len(config.joints_set)
 
@@ -26,13 +31,17 @@ class IMUPoserModel(pl.LightningModule):
         n_output = self.n_pose_output
 
         self.batch_size = config.batch_size
-        
-        self.dip_model = RNN(n_input=n_input, n_output=n_output, n_hidden=512, bidirectional=True)
+
+        self.dip_model = RNN(
+            n_input=n_input, n_output=n_output, n_hidden=512, bidirectional=True
+        )
 
         self.config = config
 
         if config.use_joint_loss:
-            self.bodymodel = ParametricModel(config.og_smpl_model_path, device=config.device)
+            self.bodymodel = ParametricModel(
+                config.og_smpl_model_path, device=config.device
+            )
 
         if config.loss_type == "mse":
             self.loss = nn.MSELoss()
@@ -51,36 +60,69 @@ class IMUPoserModel(pl.LightningModule):
 
         _pred = self(imu_inputs, input_lengths)
 
-        pred_pose = _pred[:, :, :self.n_pose_output]
+        pred_pose = _pred[:, :, : self.n_pose_output]
         _target = target_pose
-        target_pose = _target[:, :, :self.n_pose_output]
+        target_pose = _target[:, :, : self.n_pose_output]
         loss = self.loss(pred_pose, target_pose)
         if self.config.use_joint_loss:
-            pred_joint = self.bodymodel.forward_kinematics(pose=r6d_to_rotation_matrix(pred_pose).view(-1, 216))[1]
-            target_joint = self.bodymodel.forward_kinematics(pose=r6d_to_rotation_matrix(target_pose).view(-1, 216))[1] ## If training is slow, get this from the dataloader
+            pred_joint = self.bodymodel.forward_kinematics(
+                pose=r6d_to_rotation_matrix(pred_pose).view(-1, 216)
+            )[1]
+            target_joint = self.bodymodel.forward_kinematics(
+                pose=r6d_to_rotation_matrix(target_pose).view(-1, 216)
+            )[1]  ## If training is slow, get this from the dataloader
             joint_pos_loss = self.loss(pred_joint, target_joint)
             loss += joint_pos_loss
 
-        self.log(f"training_step_loss", loss.item(), batch_size=self.batch_size)
+        self.log("training_step_loss", loss.item(), batch_size=self.batch_size)
 
         return {"loss": loss}
+
+    def test_step(self, batch, batch_idx):
+        imu_inputs, target_pose, input_lengths, _ = batch
+
+        _pred = self(imu_inputs, input_lengths)
+
+        pred_pose = _pred[:, :, : self.n_pose_output]
+        _target = target_pose
+        target_pose = _target[:, :, : self.n_pose_output]
+        loss = self.loss(pred_pose, target_pose)
+        if self.config.use_joint_loss:
+            pred_joint = self.bodymodel.forward_kinematics(
+                pose=r6d_to_rotation_matrix(pred_pose).view(-1, 216)
+            )[1]
+            target_joint = self.bodymodel.forward_kinematics(
+                pose=r6d_to_rotation_matrix(target_pose).view(-1, 216)
+            )[1]  ## If training is slow, get this from the dataloader
+            joint_pos_loss = self.loss(pred_joint, target_joint)
+            loss += joint_pos_loss
+        mpjpe = calc_mpjpe(target_pose, pred_pose, self.bodymodel)
+        mpjre = calc_mpjre(target_pose, pred_pose)
+
+        self.log("test_step_loss", loss.item(), batch_size=self.batch_size)
+
+        return {"loss": loss, "mpjpe": mpjpe, "mpjre": mpjre}
 
     def validation_step(self, batch, batch_idx):
         imu_inputs, target_pose, input_lengths, _ = batch
 
         _pred = self(imu_inputs, input_lengths)
 
-        pred_pose = _pred[:, :, :self.n_pose_output]
+        pred_pose = _pred[:, :, : self.n_pose_output]
         _target = target_pose
-        target_pose = _target[:, :, :self.n_pose_output]
+        target_pose = _target[:, :, : self.n_pose_output]
         loss = self.loss(pred_pose, target_pose)
         if self.config.use_joint_loss:
-            pred_joint = self.bodymodel.forward_kinematics(pose=r6d_to_rotation_matrix(pred_pose).view(-1, 216))[1]
-            target_joint = self.bodymodel.forward_kinematics(pose=r6d_to_rotation_matrix(target_pose).view(-1, 216))[1] ## If training is slow, get this from the dataloader
+            pred_joint = self.bodymodel.forward_kinematics(
+                pose=r6d_to_rotation_matrix(pred_pose).view(-1, 216)
+            )[1]
+            target_joint = self.bodymodel.forward_kinematics(
+                pose=r6d_to_rotation_matrix(target_pose).view(-1, 216)
+            )[1]  ## If training is slow, get this from the dataloader
             joint_pos_loss = self.loss(pred_joint, target_joint)
             loss += joint_pos_loss
 
-        self.log(f"validation_step_loss", loss.item(), batch_size=self.batch_size)
+        self.log("validation_step_loss", loss.item(), batch_size=self.batch_size)
 
         return {"loss": loss}
 
@@ -89,13 +131,17 @@ class IMUPoserModel(pl.LightningModule):
 
         _pred = self(imu_inputs, input_lengths)
 
-        pred_pose = _pred[:, :, :self.n_pose_output]
+        pred_pose = _pred[:, :, : self.n_pose_output]
         _target = target_pose
-        target_pose = _target[:, :, :self.n_pose_output]
+        target_pose = _target[:, :, : self.n_pose_output]
         loss = self.loss(pred_pose, target_pose)
         if self.config.use_joint_loss:
-            pred_joint = self.bodymodel.forward_kinematics(pose=r6d_to_rotation_matrix(pred_pose).view(-1, 216))[1]
-            target_joint = self.bodymodel.forward_kinematics(pose=r6d_to_rotation_matrix(target_pose).view(-1, 216))[1] ## If training is slow, get this from the dataloader
+            pred_joint = self.bodymodel.forward_kinematics(
+                pose=r6d_to_rotation_matrix(pred_pose).view(-1, 216)
+            )[1]
+            target_joint = self.bodymodel.forward_kinematics(
+                pose=r6d_to_rotation_matrix(target_pose).view(-1, 216)
+            )[1]  ## If training is slow, get this from the dataloader
             joint_pos_loss = self.loss(pred_joint, target_joint)
             loss += joint_pos_loss
 
@@ -108,6 +154,18 @@ class IMUPoserModel(pl.LightningModule):
         self.epoch_end_callback(outputs, loop_type="val")
 
     def test_epoch_end(self, outputs):
+        mpjpes = []
+        mpjres = []
+        for out in outputs:
+            mpjpes.append(out["mpjpe"])
+
+            mpjres.append(out["mpjre"])
+
+        mpjpe = torch.mean(torch.Tensor(mpjpes))
+        mpjre = torch.mean(torch.Tensor(mpjres))
+        self.log("test_mpjpe", mpjpe, prog_bar=True, batch_size=self.batch_size)
+
+        self.log("test_mpjre", mpjre, prog_bar=True, batch_size=self.batch_size)
         self.epoch_end_callback(outputs, loop_type="test")
 
     def epoch_end_callback(self, outputs, loop_type="train"):
@@ -117,7 +175,9 @@ class IMUPoserModel(pl.LightningModule):
 
         # agg the losses
         avg_loss = torch.mean(torch.Tensor(loss))
-        self.log(f"{loop_type}_loss", avg_loss, prog_bar=True, batch_size=self.batch_size)
+        self.log(
+            f"{loop_type}_loss", avg_loss, prog_bar=True, batch_size=self.batch_size
+        )
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.lr)

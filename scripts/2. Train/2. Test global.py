@@ -1,7 +1,7 @@
 # %%
 from pathlib import Path
 
-import pytorch_lightining as pl
+import pytorch_lightning as pl
 from pytorch_lightning import seed_everything
 
 from imuposer.config import Config, amass_combos
@@ -31,17 +31,25 @@ config = Config(
     device="0",
 )
 
+# load best checkpoint
 checkpoint_dir = config.checkpoint_path
 with open(checkpoint_dir / "best_model.txt") as f:
     best_model = Path(f.readlines()[0].strip()).name
-    print(f"[DEBUG] Best model: {best_model}")
-model = get_model(config)
-model = model.load_from_checkpoint(checkpoint_dir / best_model)
+    print(f"Best model: {best_model}")
+
+model = get_model(config).load_from_checkpoint(
+    checkpoint_dir / best_model, config=config
+)
 
 datamodule = get_datamodule(config)
-trainer = pl.Trainer()
 
-trainer.test(
-    model, datamodule=datamodule
-)  # this uses the data loaders defined in dataset/utils.py
-# not that this will not work because there is currently no test step in the model definition.
+trainer = pl.Trainer(
+    fast_dev_run=fast_dev_run,
+    accelerator="gpu",
+    devices=[0],
+)
+
+results = trainer.test(model, datamodule=datamodule)
+print(f"\n=== Results for combo: {combo_id} ===")
+for k, v in results[0].items():
+    print(f"  {k}: {v:.4f}")
