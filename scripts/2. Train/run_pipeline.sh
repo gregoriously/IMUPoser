@@ -18,6 +18,7 @@ echo "=== 2. Test Global Model ==="
 python "2. Test global.py" \
   --combo_id "$COMBO" \
   --experiment "$EXPERIMENT" \
+  --checkpoint_dir "$GLOBAL_CKPT" \
   --fast_dev_run
 
 echo "=== 3. Fine-tune on DIP ==="

@@ -56,3 +56,4 @@ trainer.fit(model, datamodule=datamodule)
 # %%
 with open(checkpoint_path / "best_model.txt", "w") as f:
     f.write(f"{checkpoint_callback.best_model_path}\n\n{checkpoint_callback.best_k_models}")
+print(f"Checkpoint dir: {checkpoint_path}")

@@ -13,6 +13,11 @@ from imuposer.utils import get_parser
 seed_everything(42, workers=True)
 
 parser = get_parser()
+parser.add_argument(
+    "--checkpoint_dir",
+    required=True,
+    help="Path to the global model checkpoint directory (contains best_model.txt)",
+)
 args = parser.parse_args()
 combo_id = args.combo_id
 fast_dev_run = args.fast_dev_run
@@ -29,10 +34,11 @@ config = Config(
     loss_type="mse",
     use_joint_loss=True,
     device="0",
+    mkdir=False,
 )
 
 # load best checkpoint
-checkpoint_dir = config.checkpoint_path
+checkpoint_dir = Path(args.checkpoint_dir)
 with open(checkpoint_dir / "best_model.txt") as f:
     best_model = Path(f.readlines()[0].strip()).name
     print(f"Best model: {best_model}")
