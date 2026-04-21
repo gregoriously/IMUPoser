@@ -2,7 +2,7 @@
 set -e
 
 COMBO="global"
-EXPERIMENT="IMUPoserGlobalModel"
+EXPERIMENT="IMUPoserGlobalModelfastdev"
 
 echo "=== 1. Train Global Model ==="
 python "1. Train Global Model.py" \
