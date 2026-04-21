@@ -2,13 +2,12 @@
 set -e
 
 COMBO="global"
-EXPERIMENT="IMUPoserGlobalModelfastdev"
+EXPERIMENT="IMUPoserGlobalModel"
 
 echo "=== 1. Train Global Model ==="
 python "1. Train Global Model.py" \
   --combo_id "$COMBO" \
-  --experiment "$EXPERIMENT" \
-  --fast_dev_run
+  --experiment "$EXPERIMENT"
 
 # Find the most recently created checkpoint dir for this combo
 GLOBAL_CKPT=$(ls -dt ../../checkpoints/${EXPERIMENT}_${COMBO}-* | head -1)
@@ -18,15 +17,13 @@ echo "=== 2. Test Global Model ==="
 python "2. Test global.py" \
   --combo_id "$COMBO" \
   --experiment "$EXPERIMENT" \
-  --checkpoint_dir "$GLOBAL_CKPT" \
-  --fast_dev_run
+  --checkpoint_dir "$GLOBAL_CKPT"
 
 echo "=== 3. Fine-tune on DIP ==="
 python "3. Fine tune DIP.py" \
   --combo_id "$COMBO" \
   --experiment "$EXPERIMENT" \
-  --pretrained_checkpoint_dir "$GLOBAL_CKPT" \
-  --fast_dev_run
+  --pretrained_checkpoint_dir "$GLOBAL_CKPT"
 
 # Find the most recently created fine-tune checkpoint dir
 FINETUNE_CKPT=$(ls -dt ../../checkpoints/${EXPERIMENT}_finetune_${COMBO}-* | head -1)
@@ -37,7 +34,6 @@ python "4. Test fine tune.py" \
   --combo_id "$COMBO" \
   --experiment "$EXPERIMENT" \
   --pretrained_checkpoint_dir "$GLOBAL_CKPT" \
-  --finetune_checkpoint_dir "$FINETUNE_CKPT" \
-  --fast_dev_run
+  --finetune_checkpoint_dir "$FINETUNE_CKPT"
 
 echo "=== Pipeline complete ==="
